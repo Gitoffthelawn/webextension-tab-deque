@@ -13,7 +13,7 @@ repos:
           - "@eslint/js@10.0.1"
           - "@stylistic/eslint-plugin@5.10.0"
           - eslint@10.6.0
-          - globals@17.3.0
+          - globals@17.7.0
 
       - id: web-ext lint
         name: web-ext lint
@@ -23,10 +23,10 @@ repos:
           - javascript
         pass_filenames: false
         additional_dependencies:
-          - web-ext@9.2.0
+          - web-ext@10.4.0
 
   - repo: https://github.com/rhysd/actionlint
-    rev: v1.7.10
+    rev: v1.7.12
     hooks:
       - id: actionlint
 
