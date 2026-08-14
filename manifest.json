@@ -1,4 +1,9 @@
 {
+    "action": {
+        "default_icon": "icon.svg",
+        "default_popup": "options/options.html",
+        "default_title": "Tab Deque"
+    },
     "author": "Sebastian Blask",
     "background": {
         "scripts": [
@@ -28,6 +33,12 @@
             "description": "Send tab to end of TabDeque",
             "suggested_key": {
                 "default": "Ctrl+Down"
+            }
+        },
+        "toggle-add-background-tabs-after-current-option": {
+            "description": "Toggle `Insert new tabs into TabDeque after current tabs` option",
+            "suggested_key": {
+                "default": "Ctrl+Shift+I"
             }
         }
     },

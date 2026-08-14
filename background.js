@@ -1,4 +1,6 @@
 const OPTION_DISABLE_KEYBOARD_SHORTCUTS = "disableKeyboardShortcuts";
+const OPTION_ADD_BACKGROUND_TABS_AFTER_CURRENT = "addBackgroundTabsAfterCurrent";
+const BADGE_ADD_BACKGROUND_TABS_AFTER_CURRENT = "i";
 const STATE_STORAGE_KEY = "tabDequeState";
 
 let deques = undefined;
@@ -6,10 +8,37 @@ let nextTabId = undefined;
 let statePromise = undefined;
 let stateQueue = Promise.resolve();
 
+updateBadge();
+browser.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName === "local" && changes[OPTION_ADD_BACKGROUND_TABS_AFTER_CURRENT]) {
+        updateBadge();
+    }
+});
+
+async function updateBadge() {
+    try {
+        const result = await browser.storage.local.get(OPTION_ADD_BACKGROUND_TABS_AFTER_CURRENT);
+        const enabled = result[OPTION_ADD_BACKGROUND_TABS_AFTER_CURRENT];
+        await browser.action.setBadgeText({
+            text: enabled ? BADGE_ADD_BACKGROUND_TABS_AFTER_CURRENT : "",
+        });
+    } catch (error) {
+        console.error(error);
+    }
+}
+
 browser.commands.onCommand.addListener((command) => {
     runWithState(async () => {
         const result = await browser.storage.local.get(OPTION_DISABLE_KEYBOARD_SHORTCUTS);
         if (result[OPTION_DISABLE_KEYBOARD_SHORTCUTS]) {
+            return;
+        }
+
+        if (command === "toggle-add-background-tabs-after-current-option") {
+            const option = await browser.storage.local.get(OPTION_ADD_BACKGROUND_TABS_AFTER_CURRENT);
+            await browser.storage.local.set({
+                [OPTION_ADD_BACKGROUND_TABS_AFTER_CURRENT]: !option[OPTION_ADD_BACKGROUND_TABS_AFTER_CURRENT],
+            });
             return;
         }
 
@@ -48,13 +77,18 @@ browser.contextMenus.onClicked.addListener(
 
 browser.tabs.onCreated.addListener(
     (tab) => {
-        runWithState(() => {
+        runWithState(async () => {
             const tabId = tab.id;
             const windowId = tab.windowId;
             const currentDeque = backup(getWindowDeques(windowId)).current;
 
             if (currentDeque.indexOf(tabId) === -1) {
-                currentDeque.push(tabId);
+                const result = await browser.storage.local.get(OPTION_ADD_BACKGROUND_TABS_AFTER_CURRENT);
+                if (result[OPTION_ADD_BACKGROUND_TABS_AFTER_CURRENT]) {
+                    currentDeque.splice(1, 0, tabId);
+                } else {
+                    currentDeque.push(tabId);
+                }
             }
         });
     }
@@ -139,13 +173,22 @@ async function restoreState() {
     initializeDeques(windowInfoArray);
 }
 
-function saveState() {
-    return browser.storage.session.set({
+async function saveState() {
+    await browser.storage.session.set({
         [STATE_STORAGE_KEY]: {
             deques: deques,
             nextTabId: nextTabId,
         },
     });
+
+    if (browser.tabs.moveInSuccession) {
+        for (const windowDeques of Object.values(deques)) {
+            const currentDeque = windowDeques.current;
+            if (currentDeque.length > 0) {
+                await browser.tabs.moveInSuccession(currentDeque);
+            }
+        }
+    }
 }
 
 function sendTabToEndOfDeque(windowId, tabId) {
@@ -168,10 +211,14 @@ function selectTabFromEndOfDeque(windowId) {
 function handleRemove(windowId, tabId) {
     const currentDeque = backup(getWindowDeques(windowId)).current;
 
-    const wasFirstAndElementsLeft = removeFromDeque(tabId, currentDeque);
-    if (wasFirstAndElementsLeft) {
-        nextTabId = currentDeque[0];
-        return browser.tabs.update(nextTabId, {active: true});
+    if (browser.tabs.moveInSuccession) {
+        removeFromDeque(tabId, currentDeque);
+    } else {
+        const wasFirstAndElementsLeft = removeFromDeque(tabId, currentDeque);
+        if (wasFirstAndElementsLeft) {
+            nextTabId = currentDeque[0];
+            return browser.tabs.update(nextTabId, {active: true});
+        }
     }
 }
 
